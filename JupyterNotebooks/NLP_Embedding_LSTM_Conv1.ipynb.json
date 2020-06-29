@@ -1,0 +1,1395 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:46:43.266114Z",
+     "start_time": "2019-08-11T08:46:41.432313Z"
+    },
+    "colab": {},
+    "colab_type": "code",
+    "id": "hmA6EzkQJ5jt"
+   },
+   "outputs": [],
+   "source": [
+    "import json\n",
+    "import tensorflow as tf\n",
+    "import csv\n",
+    "import random\n",
+    "import numpy as np\n",
+    "\n",
+    "from tensorflow.keras.preprocessing.text import Tokenizer\n",
+    "from tensorflow.keras.preprocessing.sequence import pad_sequences\n",
+    "from tensorflow.keras.utils import to_categorical\n",
+    "from tensorflow.keras import regularizers\n",
+    "import pandas as pd\n",
+    "import matplotlib.pyplot as plt\n",
+    "%matplotlib inline\n",
+    "from sklearn.model_selection import train_test_split\n",
+    "%config IPCompleter.greedy=True\n",
+    "\n",
+    "# embedding_dim = 100\n",
+    "# max_length = 16\n",
+    "# trunc_type='post'\n",
+    "# padding_type='post'\n",
+    "# oov_tok = \"<OOV>\"\n",
+    "training_size=160000\n",
+    "# test_portion=.1\n",
+    "\n",
+    "# corpus = []\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:47:05.886354Z",
+     "start_time": "2019-08-11T08:46:43.268528Z"
+    },
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 204
+    },
+    "colab_type": "code",
+    "id": "bM0l_dORKqE0",
+    "outputId": "4314f0d4-80a6-4250-8f44-a8b9c0ce4a3b"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Warning: Failed to set locale category LC_NUMERIC to en_IN.\n",
+      "Warning: Failed to set locale category LC_TIME to en_IN.\n",
+      "Warning: Failed to set locale category LC_COLLATE to en_IN.\n",
+      "Warning: Failed to set locale category LC_MONETARY to en_IN.\n",
+      "Warning: Failed to set locale category LC_MESSAGES to en_IN.\n",
+      "--2019-08-11 14:16:43--  https://storage.googleapis.com/laurencemoroney-blog.appspot.com/training_cleaned.csv\n",
+      "Resolving storage.googleapis.com (storage.googleapis.com)... 216.58.197.80\n",
+      "Connecting to storage.googleapis.com (storage.googleapis.com)|216.58.197.80|:443... connected.\n",
+      "HTTP request sent, awaiting response... 200 OK\n",
+      "Length: 238942690 (228M) [application/octet-stream]\n",
+      "Saving to: ‘./training_cleaned.csv’\n",
+      "\n",
+      "./training_cleaned. 100%[===================>] 227.87M  11.1MB/s    in 22s     \n",
+      "\n",
+      "2019-08-11 14:17:05 (10.5 MB/s) - ‘./training_cleaned.csv’ saved [238942690/238942690]\n",
+      "\n"
+     ]
+    }
+   ],
+   "source": [
+    "\n",
+    "# Note that I cleaned the Stanford dataset to remove LATIN1 encoding to make it easier for Python CSV reader\n",
+    "# You can do that yourself with:\n",
+    "# iconv -f LATIN1 -t UTF8 training.1600000.processed.noemoticon.csv -o training_cleaned.csv\n",
+    "# I then hosted it on my site to make it easier to use in this notebook\n",
+    "\n",
+    "!wget --no-check-certificate \\\n",
+    "    https://storage.googleapis.com/laurencemoroney-blog.appspot.com/training_cleaned.csv \\\n",
+    "    -O ./training_cleaned.csv\n",
+    "\n",
+    "# num_sentences = 0\n",
+    "\n",
+    "# with open(\"/tmp/training_cleaned.csv\") as csvfile:\n",
+    "#     reader = csv.reader(csvfile, delimiter=',')\n",
+    "#     for row in reader:\n",
+    "#         list_item=[]\n",
+    "#         list_item.append(row[5])\n",
+    "#         this_label=row[0]\n",
+    "#         if this_label=='0':\n",
+    "#             list_item.append(0)\n",
+    "#         else:\n",
+    "#             list_item.append(1)\n",
+    "#         num_sentences = num_sentences + 1\n",
+    "#         corpus.append(list_item)\n",
+    "\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:47:05.893094Z",
+     "start_time": "2019-08-11T08:47:05.890112Z"
+    },
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 68
+    },
+    "colab_type": "code",
+    "id": "3kxblBUjEUX-",
+    "outputId": "8727edae-7fce-4f3c-faa2-692a084cbd07"
+   },
+   "outputs": [],
+   "source": [
+    "# print(num_sentences)\n",
+    "# print(len(corpus))\n",
+    "# print(corpus[1])\n",
+    "\n",
+    "# Expected Output:\n",
+    "# 1600000\n",
+    "# 1600000\n",
+    "# [\"is upset that he can't update his Facebook by texting it... and might cry as a result  School today also. Blah!\", 0]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:47:43.329567Z",
+     "start_time": "2019-08-11T08:47:39.486842Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "data = pd.read_csv('training_cleaned.csv')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:47:43.344141Z",
+     "start_time": "2019-08-11T08:47:43.331397Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>0</th>\n",
+       "      <th>1467810369</th>\n",
+       "      <th>Mon Apr 06 22:19:45 PDT 2009</th>\n",
+       "      <th>NO_QUERY</th>\n",
+       "      <th>_TheSpecialOne_</th>\n",
+       "      <th>@switchfoot http://twitpic.com/2y1zl - Awww, that's a bummer.  You shoulda got David Carr of Third Day to do it. ;D</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>0</td>\n",
+       "      <td>1467810672</td>\n",
+       "      <td>Mon Apr 06 22:19:49 PDT 2009</td>\n",
+       "      <td>NO_QUERY</td>\n",
+       "      <td>scotthamilton</td>\n",
+       "      <td>is upset that he can't update his Facebook by ...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>0</td>\n",
+       "      <td>1467810917</td>\n",
+       "      <td>Mon Apr 06 22:19:53 PDT 2009</td>\n",
+       "      <td>NO_QUERY</td>\n",
+       "      <td>mattycus</td>\n",
+       "      <td>@Kenichan I dived many times for the ball. Man...</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "   0  1467810369  Mon Apr 06 22:19:45 PDT 2009  NO_QUERY _TheSpecialOne_  \\\n",
+       "0  0  1467810672  Mon Apr 06 22:19:49 PDT 2009  NO_QUERY   scotthamilton   \n",
+       "1  0  1467810917  Mon Apr 06 22:19:53 PDT 2009  NO_QUERY        mattycus   \n",
+       "\n",
+       "  @switchfoot http://twitpic.com/2y1zl - Awww, that's a bummer.  You shoulda got David Carr of Third Day to do it. ;D  \n",
+       "0  is upset that he can't update his Facebook by ...                                                                   \n",
+       "1  @Kenichan I dived many times for the ball. Man...                                                                   "
+      ]
+     },
+     "execution_count": 5,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data.head(2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:47:46.149031Z",
+     "start_time": "2019-08-11T08:47:46.145052Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(1599999, 6)"
+      ]
+     },
+     "execution_count": 6,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data.shape"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:44:38.994939Z",
+     "start_time": "2019-08-11T08:44:38.992137Z"
+    }
+   },
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "**Adding colun names to the data frame**"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:48:10.619718Z",
+     "start_time": "2019-08-11T08:48:10.048556Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "labeled_data =pd.DataFrame(data.values, columns = [\"label\", \"Data1\", \"Data2\", \"Data3\", \"Data4\", \"text\"])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:48:13.479295Z",
+     "start_time": "2019-08-11T08:48:12.996640Z"
+    }
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "<class 'pandas.core.frame.DataFrame'>\n",
+      "RangeIndex: 1599999 entries, 0 to 1599998\n",
+      "Data columns (total 6 columns):\n",
+      "label    1599999 non-null object\n",
+      "Data1    1599999 non-null object\n",
+      "Data2    1599999 non-null object\n",
+      "Data3    1599999 non-null object\n",
+      "Data4    1599999 non-null object\n",
+      "text     1599999 non-null object\n",
+      "dtypes: object(6)\n",
+      "memory usage: 73.2+ MB\n"
+     ]
+    }
+   ],
+   "source": [
+    "labeled_data.info()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:48:14.819569Z",
+     "start_time": "2019-08-11T08:48:14.770098Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "2"
+      ]
+     },
+     "execution_count": 10,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "len(labeled_data.iloc[:, 0].unique().tolist())"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:48:18.297100Z",
+     "start_time": "2019-08-11T08:48:18.246473Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([0, 4], dtype=object)"
+      ]
+     },
+     "execution_count": 11,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "labeled_data.iloc[:, 0].unique()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "**convert first column as lable with values 0 or 1**"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:48:20.619316Z",
+     "start_time": "2019-08-11T08:48:19.889121Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "labeled_data.iloc[:, 0] = labeled_data.iloc[:, 0].apply(lambda x : 0 if x==0 else 1)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:48:20.637161Z",
+     "start_time": "2019-08-11T08:48:20.621317Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([0, 1])"
+      ]
+     },
+     "execution_count": 13,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "labeled_data.iloc[:, 0].unique()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "**Dropping unused columns**"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:48:26.133354Z",
+     "start_time": "2019-08-11T08:48:26.017877Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "labeled_data.drop(['Data1','Data2','Data3','Data4'], inplace=True,axis=1)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:48:26.888912Z",
+     "start_time": "2019-08-11T08:48:26.885203Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(1599999, 2)"
+      ]
+     },
+     "execution_count": 15,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "labeled_data.shape"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 16,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:48:29.402319Z",
+     "start_time": "2019-08-11T08:48:28.883512Z"
+    }
+   },
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "[nltk_data] Downloading package stopwords to\n",
+      "[nltk_data]     /Users/manishgarg/nltk_data...\n",
+      "[nltk_data]   Package stopwords is already up-to-date!\n"
+     ]
+    },
+    {
+     "data": {
+      "text/plain": [
+       "True"
+      ]
+     },
+     "execution_count": 16,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "# Load library\n",
+    "from nltk.corpus import stopwords\n",
+    "import nltk\n",
+    "nltk.download('stopwords')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:48:30.801567Z",
+     "start_time": "2019-08-11T08:48:30.796408Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "# Load stop words\n",
+    "stop_words = stopwords.words('english')\n",
+    "stop_words.append('...')\n",
+    "stop_words.append('.')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 18,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:49:11.115619Z",
+     "start_time": "2019-08-11T08:48:32.712456Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "labeled_data['text'] = labeled_data['text'].apply(lambda x: ' '.join([word for word in x.split() if word not in (stop_words)]))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:49:59.429709Z",
+     "start_time": "2019-08-11T08:49:53.906741Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "labeled_data.to_csv(\"./training_cleaned_updated.csv\", sep=',')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 20,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:50:04.471718Z",
+     "start_time": "2019-08-11T08:50:04.464996Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>label</th>\n",
+       "      <th>text</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>0</td>\n",
+       "      <td>upset can't update Facebook texting it... migh...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>0</td>\n",
+       "      <td>@Kenichan I dived many times ball. Managed sav...</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "   label                                               text\n",
+       "0      0  upset can't update Facebook texting it... migh...\n",
+       "1      0  @Kenichan I dived many times ball. Managed sav..."
+      ]
+     },
+     "execution_count": 20,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "labeled_data.head(2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 21,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:50:07.317217Z",
+     "start_time": "2019-08-11T08:50:07.163776Z"
+    }
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "<class 'pandas.core.frame.DataFrame'>\n",
+      "RangeIndex: 1599999 entries, 0 to 1599998\n",
+      "Data columns (total 2 columns):\n",
+      "label    1599999 non-null int64\n",
+      "text     1599999 non-null object\n",
+      "dtypes: int64(1), object(1)\n",
+      "memory usage: 24.4+ MB\n"
+     ]
+    }
+   ],
+   "source": [
+    "labeled_data.info()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 25,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:53:32.488007Z",
+     "start_time": "2019-08-11T08:53:32.485082Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "embedding_dim = 120\n",
+    "trunc_type='post'\n",
+    "padding_type='post'\n",
+    "oov_tok = \"<OOV>\"\n",
+    "training_size=160000\n",
+    "test_portion=.2"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 26,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:53:33.183524Z",
+     "start_time": "2019-08-11T08:53:33.180941Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "xs = labeled_data['text'].values\n",
+    "ys = labeled_data['label'].values"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:53:00.447749Z",
+     "start_time": "2019-08-11T08:53:00.439080Z"
+    }
+   },
+   "source": [
+    "**First spliting of total data to train**"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 37,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T08:59:15.649886Z",
+     "start_time": "2019-08-11T08:59:14.738283Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "\n",
+    "X_total_train, X_Sample, y_total_train, y_Sample = train_test_split(xs, ys,\n",
+    "                                                    test_size=0.1,\n",
+    "                                                    random_state=101,\n",
+    "                                                    stratify=ys)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 64,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:07:41.815430Z",
+     "start_time": "2019-08-11T09:07:41.811941Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(160000,)"
+      ]
+     },
+     "execution_count": 64,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "X_Sample.shape"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 65,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:07:42.765500Z",
+     "start_time": "2019-08-11T09:07:42.762089Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(160000,)"
+      ]
+     },
+     "execution_count": 65,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "y_Sample.shape"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 66,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:07:45.845766Z",
+     "start_time": "2019-08-11T09:07:45.840458Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "unique, counts = np.unique(y_Sample, return_counts=True)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 67,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:07:46.481757Z",
+     "start_time": "2019-08-11T09:07:46.477296Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([0, 1])"
+      ]
+     },
+     "execution_count": 67,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "unique"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 68,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:07:49.839460Z",
+     "start_time": "2019-08-11T09:07:49.835816Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "array([80000, 80000])"
+      ]
+     },
+     "execution_count": 68,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "counts"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 70,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:08:20.727577Z",
+     "start_time": "2019-08-11T09:08:20.651457Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "\n",
+    "X_train, X_test, y_train, y_test = train_test_split(X_Sample, y_Sample,\n",
+    "                                                    test_size=0.2,\n",
+    "                                                    random_state=101,\n",
+    "                                                    stratify=y_Sample)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 71,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:08:21.788335Z",
+     "start_time": "2019-08-11T09:08:21.784858Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(128000,)"
+      ]
+     },
+     "execution_count": 71,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "y_train.shape"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 72,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:08:23.599998Z",
+     "start_time": "2019-08-11T09:08:23.596479Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(128000,)"
+      ]
+     },
+     "execution_count": 72,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "X_train.shape"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 73,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:08:27.514505Z",
+     "start_time": "2019-08-11T09:08:27.360625Z"
+    }
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "max_length 33\n"
+     ]
+    }
+   ],
+   "source": [
+    "max_length = max([len(d.split()) for d in X_Sample])\n",
+    "print(\"max_length\", max_length)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 74,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:08:29.429698Z",
+     "start_time": "2019-08-11T09:08:29.427032Z"
+    },
+    "colab": {},
+    "colab_type": "code",
+    "id": "ohOGz24lsNAD"
+   },
+   "outputs": [],
+   "source": [
+    "# sentences=[]\n",
+    "# labels=[]\n",
+    "# random.shuffle(corpus)\n",
+    "# for x in range(training_size):\n",
+    "#     sentences.append(corpus[x][0])\n",
+    "#     labels.append(corpus[x][1])\n",
+    "\n",
+    "\n",
+    "# tokenizer = Tokenizer()\n",
+    "# tokenizer.fit_on_texts(sentences)\n",
+    "\n",
+    "# word_index = tokenizer.word_index\n",
+    "# vocab_size=len(word_index)\n",
+    "\n",
+    "# sequences = tokenizer.texts_to_sequences(sentences)\n",
+    "# padded = pad_sequences(sequences, maxlen=max_length, padding=padding_type, truncating=trunc_type)\n",
+    "\n",
+    "# split = int(test_portion * training_size)\n",
+    "\n",
+    "# test_sequences = padded[0:split]\n",
+    "# training_sequences = padded[split:training_size]\n",
+    "# test_labels = labels[0:split]\n",
+    "# training_labels = labels[split:training_size]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 75,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:08:34.142980Z",
+     "start_time": "2019-08-11T09:08:31.289073Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "tokenizer = Tokenizer(num_words = max_length, oov_token=oov_tok)\n",
+    "tokenizer.fit_on_texts(X_Sample)\n",
+    "word_index = tokenizer.word_index"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 76,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:08:34.993311Z",
+     "start_time": "2019-08-11T09:08:34.990747Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "vocab_size = len(tokenizer.word_index) + 1"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 77,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:08:35.681741Z",
+     "start_time": "2019-08-11T09:08:35.678861Z"
+    },
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 51
+    },
+    "colab_type": "code",
+    "id": "gIrtRem1En3N",
+    "outputId": "0eddccce-7cc6-47fc-d6b0-a6ffbded69f8"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "138895\n",
+      "2\n"
+     ]
+    }
+   ],
+   "source": [
+    "print(vocab_size)\n",
+    "print(word_index['i'])\n",
+    "# Expected Output\n",
+    "# 138858\n",
+    "# 1"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 78,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:08:36.988801Z",
+     "start_time": "2019-08-11T09:08:36.986408Z"
+    },
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 204
+    },
+    "colab_type": "code",
+    "id": "C1zdgJkusRh0",
+    "outputId": "319c0302-bcef-4b74-8a09-6fb290fa151c"
+   },
+   "outputs": [],
+   "source": [
+    "# Note this is the 100 dimension version of GloVe from Stanford\n",
+    "# # I unzipped and hosted it on my site to make this notebook easier\n",
+    "# !wget --no-check-certificate \\\n",
+    "#     https://storage.googleapis.com/laurencemoroney-blog.appspot.com/glove.6B.100d.txt \\\n",
+    "#     -O /tmp/glove.6B.100d.txt\n",
+    "# embeddings_index = {};\n",
+    "# with open('/tmp/glove.6B.100d.txt') as f:\n",
+    "#     for line in f:\n",
+    "#         values = line.split();\n",
+    "#         word = values[0];\n",
+    "#         coefs = np.asarray(values[1:], dtype='float32');\n",
+    "#         embeddings_index[word] = coefs;\n",
+    "\n",
+    "# embeddings_matrix = np.zeros((vocab_size+1, embedding_dim));\n",
+    "# for word, i in word_index.items():\n",
+    "#     embedding_vector = embeddings_index.get(word);\n",
+    "#     if embedding_vector is not None:\n",
+    "#         embeddings_matrix[i] = embedding_vector;"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 79,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:08:37.768073Z",
+     "start_time": "2019-08-11T09:08:37.765771Z"
+    },
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 34
+    },
+    "colab_type": "code",
+    "id": "71NLk_lpFLNt",
+    "outputId": "fa423a6f-23c8-43ec-e224-39936a09d951"
+   },
+   "outputs": [],
+   "source": [
+    "# print(len(embeddings_matrix))\n",
+    "# # Expected Output\n",
+    "# # 138859"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 80,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:08:38.745675Z",
+     "start_time": "2019-08-11T09:08:38.743277Z"
+    },
+    "colab": {
+     "base_uri": "https://localhost:8080/",
+     "height": 717
+    },
+    "colab_type": "code",
+    "id": "iKKvbuEBOGFz",
+    "outputId": "a4e4dd1c-3cfd-4d80-9698-6ecabe0a3943"
+   },
+   "outputs": [],
+   "source": [
+    "# model = tf.keras.Sequential([\n",
+    "#     tf.keras.layers.Embedding(vocab_size+1, embedding_dim, input_length=max_length, weights=[embeddings_matrix], trainable=False),\n",
+    "#     tf.keras.layers.Dropout(0.2),\n",
+    "#     tf.keras.layers.Conv1D(64, 5, activation='relu'),\n",
+    "#     tf.keras.layers.MaxPooling1D(pool_size=4),\n",
+    "#     tf.keras.layers.LSTM(64),\n",
+    "#     tf.keras.layers.Dense(1, activation='sigmoid')\n",
+    "# ])\n",
+    "# model.compile(loss='binary_crossentropy',optimizer='adam',metrics=['accuracy'])\n",
+    "# model.summary()\n",
+    "\n",
+    "# num_epochs = 50\n",
+    "# history = model.fit(training_sequences, training_labels, epochs=num_epochs, validation_data=(test_sequences, test_labels), verbose=2)\n",
+    "\n",
+    "# print(\"Training Complete\")\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 81,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:08:40.109781Z",
+     "start_time": "2019-08-11T09:08:40.106482Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(128000,)"
+      ]
+     },
+     "execution_count": 81,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "X_train.shape"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 82,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:08:41.202110Z",
+     "start_time": "2019-08-11T09:08:41.198717Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(128000,)"
+      ]
+     },
+     "execution_count": 82,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "y_train.shape"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 83,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:08:45.923688Z",
+     "start_time": "2019-08-11T09:08:43.458862Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "train_sequences = tokenizer.texts_to_sequences(X_train)\n",
+    "train_padded = pad_sequences(train_sequences,maxlen=max_length, truncating=trunc_type)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 84,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:08:50.216042Z",
+     "start_time": "2019-08-11T09:08:49.626425Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "testing_sequences = tokenizer.texts_to_sequences(X_test)\n",
+    "testing_padded = pad_sequences(testing_sequences,maxlen=max_length)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 85,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:08:53.714125Z",
+     "start_time": "2019-08-11T09:08:53.348122Z"
+    }
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "_________________________________________________________________\n",
+      "Layer (type)                 Output Shape              Param #   \n",
+      "=================================================================\n",
+      "embedding_1 (Embedding)      (None, 33, 120)           16667400  \n",
+      "_________________________________________________________________\n",
+      "dropout_1 (Dropout)          (None, 33, 120)           0         \n",
+      "_________________________________________________________________\n",
+      "conv1d_1 (Conv1D)            (None, 29, 128)           76928     \n",
+      "_________________________________________________________________\n",
+      "max_pooling1d_1 (MaxPooling1 (None, 7, 128)            0         \n",
+      "_________________________________________________________________\n",
+      "lstm_1 (LSTM)                (None, 120)               119520    \n",
+      "_________________________________________________________________\n",
+      "dense_1 (Dense)              (None, 1)                 121       \n",
+      "=================================================================\n",
+      "Total params: 16,863,969\n",
+      "Trainable params: 16,863,969\n",
+      "Non-trainable params: 0\n",
+      "_________________________________________________________________\n"
+     ]
+    }
+   ],
+   "source": [
+    "model = tf.keras.Sequential()\n",
+    "model.add(tf.keras.layers.Embedding(vocab_size,embedding_dim, input_length=max_length))\n",
+    "model.add(tf.keras.layers.Dropout(0.2))\n",
+    "model.add(tf.keras.layers.Conv1D(128, 5, activation='relu'))\n",
+    "model.add(tf.keras.layers.MaxPooling1D(pool_size=4))\n",
+    "model.add(tf.keras.layers.LSTM(units=embedding_dim))\n",
+    "model.add(tf.keras.layers.Dense(1, activation='sigmoid'))\n",
+    "model.compile(loss='binary_crossentropy',optimizer='adam',metrics=['accuracy'])\n",
+    "model.summary()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 86,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:08:56.905324Z",
+     "start_time": "2019-08-11T09:08:56.901583Z"
+    }
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(128000, 33)"
+      ]
+     },
+     "execution_count": 86,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "train_padded.shape"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 88,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2019-08-11T09:14:11.452769Z",
+     "start_time": "2019-08-11T09:09:08.915183Z"
+    }
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Train on 128000 samples, validate on 32000 samples\n",
+      "WARNING:tensorflow:From /Users/manishgarg/anaconda3/envs/udacity/lib/python3.7/site-packages/tensorflow/python/ops/math_ops.py:3066: to_int32 (from tensorflow.python.ops.math_ops) is deprecated and will be removed in a future version.\n",
+      "Instructions for updating:\n",
+      "Use tf.cast instead.\n",
+      "Epoch 1/25\n"
+     ]
+    },
+    {
+     "ename": "KeyboardInterrupt",
+     "evalue": "",
+     "output_type": "error",
+     "traceback": [
+      "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+      "\u001b[0;31mKeyboardInterrupt\u001b[0m                         Traceback (most recent call last)",
+      "\u001b[0;32m<ipython-input-88-521ea9e9d6d0>\u001b[0m in \u001b[0;36m<module>\u001b[0;34m\u001b[0m\n\u001b[1;32m      1\u001b[0m \u001b[0mnum_epochs\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0;36m25\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      2\u001b[0m history = model.fit(train_padded, y_train, epochs=num_epochs, batch_size=128,\n\u001b[0;32m----> 3\u001b[0;31m                     validation_data=(testing_padded, y_test), verbose=2)\n\u001b[0m",
+      "\u001b[0;32m~/anaconda3/envs/udacity/lib/python3.7/site-packages/tensorflow/python/keras/engine/training.py\u001b[0m in \u001b[0;36mfit\u001b[0;34m(self, x, y, batch_size, epochs, verbose, callbacks, validation_split, validation_data, shuffle, class_weight, sample_weight, initial_epoch, steps_per_epoch, validation_steps, max_queue_size, workers, use_multiprocessing, **kwargs)\u001b[0m\n\u001b[1;32m    878\u001b[0m           \u001b[0minitial_epoch\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0minitial_epoch\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    879\u001b[0m           \u001b[0msteps_per_epoch\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0msteps_per_epoch\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 880\u001b[0;31m           validation_steps=validation_steps)\n\u001b[0m\u001b[1;32m    881\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    882\u001b[0m   def evaluate(self,\n",
+      "\u001b[0;32m~/anaconda3/envs/udacity/lib/python3.7/site-packages/tensorflow/python/keras/engine/training_arrays.py\u001b[0m in \u001b[0;36mmodel_iteration\u001b[0;34m(model, inputs, targets, sample_weights, batch_size, epochs, verbose, callbacks, val_inputs, val_targets, val_sample_weights, shuffle, initial_epoch, steps_per_epoch, validation_steps, mode, validation_in_fit, **kwargs)\u001b[0m\n\u001b[1;32m    327\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    328\u001b[0m         \u001b[0;31m# Get outputs.\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 329\u001b[0;31m         \u001b[0mbatch_outs\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mf\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mins_batch\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    330\u001b[0m         \u001b[0;32mif\u001b[0m \u001b[0;32mnot\u001b[0m \u001b[0misinstance\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mbatch_outs\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mlist\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    331\u001b[0m           \u001b[0mbatch_outs\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0;34m[\u001b[0m\u001b[0mbatch_outs\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;32m~/anaconda3/envs/udacity/lib/python3.7/site-packages/tensorflow/python/keras/backend.py\u001b[0m in \u001b[0;36m__call__\u001b[0;34m(self, inputs)\u001b[0m\n\u001b[1;32m   3074\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   3075\u001b[0m     fetched = self._callable_fn(*array_vals,\n\u001b[0;32m-> 3076\u001b[0;31m                                 run_metadata=self.run_metadata)\n\u001b[0m\u001b[1;32m   3077\u001b[0m     \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_call_fetch_callbacks\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mfetched\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m-\u001b[0m\u001b[0mlen\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_fetches\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   3078\u001b[0m     return nest.pack_sequence_as(self._outputs_structure,\n",
+      "\u001b[0;32m~/anaconda3/envs/udacity/lib/python3.7/site-packages/tensorflow/python/client/session.py\u001b[0m in \u001b[0;36m__call__\u001b[0;34m(self, *args, **kwargs)\u001b[0m\n\u001b[1;32m   1437\u001b[0m           ret = tf_session.TF_SessionRunCallable(\n\u001b[1;32m   1438\u001b[0m               \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_session\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_session\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_handle\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0margs\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mstatus\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m-> 1439\u001b[0;31m               run_metadata_ptr)\n\u001b[0m\u001b[1;32m   1440\u001b[0m         \u001b[0;32mif\u001b[0m \u001b[0mrun_metadata\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1441\u001b[0m           \u001b[0mproto_data\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mtf_session\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mTF_GetBuffer\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mrun_metadata_ptr\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;31mKeyboardInterrupt\u001b[0m: "
+     ]
+    }
+   ],
+   "source": [
+    "num_epochs = 25\n",
+    "history = model.fit(train_padded, y_train, epochs=num_epochs, batch_size=128,\n",
+    "                    validation_data=(testing_padded, y_test), verbose=2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 0,
+   "metadata": {
+    "colab": {},
+    "colab_type": "code",
+    "id": "qxju4ItJKO8F"
+   },
+   "outputs": [],
+   "source": [
+    "import matplotlib.image  as mpimg\n",
+    "import matplotlib.pyplot as plt\n",
+    "\n",
+    "#-----------------------------------------------------------\n",
+    "# Retrieve a list of list results on training and test data\n",
+    "# sets for each training epoch\n",
+    "#-----------------------------------------------------------\n",
+    "acc=history.history['acc']\n",
+    "val_acc=history.history['val_acc']\n",
+    "loss=history.history['loss']\n",
+    "val_loss=history.history['val_loss']\n",
+    "\n",
+    "epochs=range(len(acc)) # Get number of epochs\n",
+    "\n",
+    "#------------------------------------------------\n",
+    "# Plot training and validation accuracy per epoch\n",
+    "#------------------------------------------------\n",
+    "plt.plot(epochs, acc, 'r')\n",
+    "plt.plot(epochs, val_acc, 'b')\n",
+    "plt.title('Training and validation accuracy')\n",
+    "plt.xlabel(\"Epochs\")\n",
+    "plt.ylabel(\"Accuracy\")\n",
+    "plt.legend([\"Accuracy\", \"Validation Accuracy\"])\n",
+    "\n",
+    "plt.figure()\n",
+    "\n",
+    "#------------------------------------------------\n",
+    "# Plot training and validation loss per epoch\n",
+    "#------------------------------------------------\n",
+    "plt.plot(epochs, loss, 'r')\n",
+    "plt.plot(epochs, val_loss, 'b')\n",
+    "plt.title('Training and validation loss')\n",
+    "plt.xlabel(\"Epochs\")\n",
+    "plt.ylabel(\"Loss\")\n",
+    "plt.legend([\"Loss\", \"Validation Loss\"])\n",
+    "\n",
+    "plt.figure()\n",
+    "\n",
+    "\n",
+    "# Expected Output\n",
+    "# A chart where the validation loss does not increase sharply!"
+   ]
+  }
+ ],
+ "metadata": {
+  "accelerator": "GPU",
+  "colab": {
+   "name": "NLP Course - Week 3 Exercise Answer.ipynb",
+   "provenance": [],
+   "version": "0.3.2"
+  },
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.7.3"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 1
+}
