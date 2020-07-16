@@ -2,11 +2,35 @@ import datetime
 import sqlite3
 from sqlite3 import Error
 
-INSERT_MOVIE = "INSERT INTO movies (title, release_timestamp, watched) VALUES (?, ?, 0);"
+CREATE_MOVIES_TABLE = """CREATE TABLE IF NOT EXISTS movies (
+    id INTEGER PRIMARY KEY,
+    title TEXT,
+    release_timestamp REAL
+);"""
+
+CREATE_USERS_TABLE = """CREATE TABLE IF NOT EXISTS users (
+    username TEXT PRIMARY KEY
+);"""
+
+CREATE_WATCHED_TABLE = """CREATE TABLE IF NOT EXISTS watched (
+    user_username TEXT,
+    movie_id INTEGER,
+    FOREIGN KEY(user_username) REFERENCES users(username),
+    FOREIGN KEY(movie_id) REFERENCES movies(id)
+);"""
+
+INSERT_MOVIE = "INSERT INTO movies (title, release_timestamp) VALUES (?, ?)"
 SELECT_ALL_MOVIES = "SELECT * FROM movies;"
 SELECT_UPCOMING_MOVIES = "SELECT * FROM movies WHERE release_timestamp > ?;"
-SELECT_WATCHED_MOVIES = "SELECT * FROM movies WHERE watched = 1;"
-SET_MOVIE_WATCHED = "UPDATE movies SET watched = 1 WHERE title = ?;"
+INSERT_USER = "INSERT INTO users (username) VALUES (?)"
+INSERT_WATCHED_MOVIE = "INSERT INTO watched (user_username, movie_id) VALUES (?, ?)"
+SELECT_WATCHED_MOVIES = """SELECT movies.*
+FROM users
+JOIN watched ON users.username = watched.user_username
+JOIN movies ON watched.movie_id = movies.id
+WHERE users.username = ?;"""
+SEARCH_MOVIE = """SELECT * FROM movies WHERE title LIKE ?;"""
+
 
 connection = None
 
@@ -25,14 +49,11 @@ def create_connection(db_file):
     return connection
 
 
-def create_table(sqlStr):
+def create_tables():
     with connection:
-        connection.execute(sqlStr)
-
-
-def create_tables(CREATE_TABLE):
-    with connection:
-        connection.execute(CREATE_TABLE)
+        connection.execute(CREATE_MOVIES_TABLE)
+        connection.execute(CREATE_USERS_TABLE)
+        connection.execute(CREATE_WATCHED_TABLE)
 
 
 def add_movie(title, release_timestamp):
@@ -41,7 +62,6 @@ def add_movie(title, release_timestamp):
 
 
 def get_movies(upcoming=False):
-    movies = []
     with connection:
         cursor = connection.cursor()
         if upcoming:
@@ -49,24 +69,31 @@ def get_movies(upcoming=False):
             cursor.execute(SELECT_UPCOMING_MOVIES, (today_timestamp,))
         else:
             cursor.execute(SELECT_ALL_MOVIES)
-        for row in cursor:
-            movies.append(row)
-        return movies
+        return cursor.fetchall()
 
 
-def get_watched_movies():
-    movies = []
+def add_user(username):
+    with connection:
+        connection.execute(INSERT_USER, (username,))
+
+
+def watch_movie(username, movie_id):
+    with connection:
+        connection.execute(INSERT_WATCHED_MOVIE, (username, movie_id))
+
+
+def get_watched_movies(username):
     with connection:
         cursor = connection.cursor()
-        cursor.execute(SELECT_WATCHED_MOVIES)
-        for row in cursor:
-            movies.append(row)
-        return movies
+        cursor.execute(SELECT_WATCHED_MOVIES, (username,))
+        return cursor.fetchall()
 
 
-def watch_movie(movie_title):
+def search_movies(search_term):
     with connection:
-        connection.execute(SET_MOVIE_WATCHED, (movie_title,))
+        cursor = connection.cursor()
+        cursor.execute(SEARCH_MOVIE, (f"%{search_term}%",))
+        return cursor.fetchall()
 
 
 def close_connection():
