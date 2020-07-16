@@ -1,4 +1,4 @@
-from database import add_entry,get_entries,create_connection,create_table
+from sqlitedatabase import add_entry,get_entries,create_connection,create_table
 
 menu = """ Welcome to the programming diary!
 
@@ -46,10 +46,11 @@ def main():
     connection = create_connection(database)
     with connection:
         create_table(connection)
-        add_entry(connection,"Do not use SQL ")
+        add_entry(connection,"Learning SQLite with Python" ,"2020-06-01")
         entries = get_entries(connection)
         for entry in entries:
             print(entry)
 
 
-main()
+if __name__ == '__main__':
+    main()

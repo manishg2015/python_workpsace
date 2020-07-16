@@ -1,4 +1,5 @@
 import sqlite3
+from sqlite3 import Error
 
 def create_connection(db_file):
     """ create a database connection to the SQLite database
@@ -9,7 +10,7 @@ def create_connection(db_file):
     conn = None
     try:
         conn = sqlite3.connect(db_file)
-    except sqlite3.Error as e:
+    except Error as e:
         print(e)
 
     return conn
@@ -18,13 +19,9 @@ def create_table(connection):
    connection.execute("CREATE TABLE IF NOT EXISTS entries (content TEXT, date TEXT);")
    connection.commit()
 
-
-
 def add_entry(connection, content, date):
     connection.execute("INSERT INTO entries VALUES (?, ?);", (content, date))
     connection.commit()
-
-
 
 def get_entries(connection):
     cursor = connection.cursor()
@@ -32,6 +29,7 @@ def get_entries(connection):
     entries = []
     for row in cursor:
         entries.append(row)
+    cursor.close()
     return entries
 
 
